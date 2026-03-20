@@ -1,5 +1,6 @@
 #include "systick.h"
 
+
 void SysTick_Init(void){
 	
 	SysTick->CTRL|=0b101; // Clock source selection processor clock 72MHz 
@@ -17,19 +18,35 @@ void SysTick_Handler(void){
 	SCB->ICSR|=SCB_ICSR_PENDSVSET;
 }
 
+
+void dummy1(void){	
+	__asm__ volatile("MOV r4 , 1");
+	while(1){
+	}
+}
+void dummy2(void){
+	__asm__ volatile("MOV r4 , 2");
+	while(1);
+}
+
 void PendSV_Handler(void){
 	//Pour les taches utilisant les registres R4 à R11
-	
-	// stack r4 in the first psp
-	__asm__ volatile("push{R4 , R5}"); //same stack than psp one? is the start at psp+8?
-	
-	// move the psp / save to mem?
-	if (__get_PSP()!=0x20001000){
-		__set_PSP(0x20001000);
+	//stack on the actual psp...
+	__asm__ volatile("str r4 , [%0]" :: "r"(__get_PSP()+1));
+	if (current_task==0){
+		c_stack_1= *psp_dummy_1;
+		c_stack_2= *psp_dummy_2;
 	}
-	else{
-	__set_PSP(0x20002000);
+	else if (current_task==2){
+		c_stack_2=__get_PSP();
+		__set_PSP(c_stack_1);
+		current_task=1;
+	}
+	else{		
+		c_stack_1=__get_PSP();
+		__set_PSP(c_stack_2);
+		current_task=2;
 	}
 	// unstack the r4 in other psp for the new task:
-	__asm__ volatile("pop {R4, R5}");  // first unstack pb ?
+	__asm__ volatile("ldr r4 , [%0]" :: "r"(__get_PSP()+1));
 }
